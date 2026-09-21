@@ -2,6 +2,8 @@
 
 Companion to the blog article about building an internal developer platform backwards from one reviewed `config.json`. Clone this repository and run one command to stand up a Kind cluster that follows that model.
 
+![A JSON file powers the platform](img/json-file-powers-platform.jpg)
+
 This is a local demonstration, not a production platform. Vault runs in dev mode with a well-known root token.
 
 ## One command
@@ -49,6 +51,7 @@ policies/     Vault policy source of truth and Kyverno ClusterPolicies
 charts/       shared workload chart and CNPG database claim chart
 apps/         values for push-service
 scripts/      up.sh, down.sh, registry validation
+img/          diagram used by the README
 ```
 
 ## How a field becomes a resource
