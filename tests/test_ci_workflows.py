@@ -55,7 +55,9 @@ def test_validation_workflow_checks_registry_rendering_and_policies():
 def test_policy_renderer_is_offline_and_does_not_require_a_kubernetes_api():
     script = read("scripts/render-and-check-policies.sh")
 
-    assert 'kubectl apply --dry-run=client --validate=false --server-side=false --openapi-patch=false' in script
+    assert 'need kubectl' not in script
+    assert 'kubectl apply' not in script
+    assert 'kyverno apply policies/kyverno --resource' in script
 
 
 def test_validation_workflow_has_no_narrow_path_filter_regression():

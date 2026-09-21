@@ -12,7 +12,6 @@ need() {
 }
 
 need helm
-need kubectl
 need kyverno
 
 if command -v tofu >/dev/null 2>&1; then
@@ -60,7 +59,6 @@ for environment in dev int; do
 done
 
 for manifest in "$render_dir"/*.yaml; do
-  kubectl apply --dry-run=client --validate=false --server-side=false --openapi-patch=false -f "$manifest"
   kyverno apply policies/kyverno --resource "$manifest"
 done
 

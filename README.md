@@ -90,7 +90,7 @@ tofu validate
 scripts/render-and-check-policies.sh
 ```
 
-The renderer is intentionally offline. It uses `kubectl --dry-run=client --validate=false` plus the Kyverno CLI, so it works on a GitHub-hosted runner without a cluster.
+The renderer is intentionally offline: Helm produces the manifests and the Kyverno CLI evaluates the policies without requiring Kubernetes credentials or a live API server.
 
 ## Vault updates
 
