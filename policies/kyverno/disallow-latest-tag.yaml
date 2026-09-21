@@ -1,0 +1,22 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow latest image tag
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: autoload-latest
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["project-a-*"]
+      validate:
+        message: "Using the latest tag is not allowed. Pin an image version."
+        foreach:
+          - list: "request.object.spec.containers"
+            pattern:
+              image: "!*:latest"

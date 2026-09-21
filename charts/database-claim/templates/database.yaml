@@ -1,0 +1,13 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: {{ .Values.database.name }}
+  namespace: {{ .Values.cluster.namespace }}
+  labels:
+    platform.demo/project: {{ .Values.project | quote }}
+    platform.demo/service: {{ .Values.environment | quote }}
+spec:
+  name: {{ .Values.database.name }}
+  owner: {{ .Values.database.owner }}
+  cluster:
+    name: {{ .Values.cluster.name }}

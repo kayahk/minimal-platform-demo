@@ -1,0 +1,25 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-platform-labels
+  annotations:
+    policies.kyverno.io/title: Require platform labels
+    policies.kyverno.io/description: Namespaces created for registry stages must carry project, service, and environment labels.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-platform-labels
+      match:
+        any:
+          - resources:
+              kinds: ["Namespace"]
+              names: ["project-a-*"]
+      validate:
+        message: "Namespace must have platform.demo/project, platform.demo/service, and platform.demo/environment labels."
+        pattern:
+          metadata:
+            labels:
+              platform.demo/project: "?*"
+              platform.demo/service: "?*"
+              platform.demo/environment: "?*"

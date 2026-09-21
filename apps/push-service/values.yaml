@@ -1,0 +1,4 @@
+# Shared values for every stage of push-service.
+image:
+  repository: nginx
+  tag: "1.27.3"

@@ -1,0 +1,10 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+kubeconfig
+kind
+.bin/
+.idea/
+.DS_Store
+*.swp

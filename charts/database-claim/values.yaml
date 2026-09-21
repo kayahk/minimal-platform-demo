@@ -1,0 +1,11 @@
+cluster:
+  name: platform-postgres
+  namespace: cnpg-system
+
+project: ""
+environment: ""
+namespace: ""
+
+database:
+  name: ""
+  owner: app

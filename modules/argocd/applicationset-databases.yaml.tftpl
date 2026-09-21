@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: registry-databases
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    - matrix:
+        generators:
+          - git:
+              repoURL: ${repo_url}
+              revision: ${repo_revision}
+              files:
+                - path: registry/dev/*/*/config.json
+          - list:
+              elementsYaml: "{{ if .spec.database }}{{ .spec.environments | toJson }}{{ else }}[]{{ end }}"
+  template:
+    metadata:
+      name: "{{.projectName}}-{{.serviceName}}-db-{{.name}}"
+      labels:
+        platform.demo/project: "{{.projectName}}"
+        platform.demo/service: "{{.serviceName}}"
+        platform.demo/environment: "{{.name}}"
+    spec:
+      project: default
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: cnpg-system
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+      source:
+        repoURL: ${repo_url}
+        targetRevision: ${repo_revision}
+        path: charts/database-claim
+        helm:
+          releaseName: "{{.projectName}}-{{.serviceName}}-db-{{.name}}"
+          values: |
+            cluster:
+              name: platform-postgres
+              namespace: cnpg-system
+            project: "{{.projectName}}"
+            environment: "{{.name}}"
+            namespace: "{{.projectName}}-{{.name}}"
+            database:
+              name: "{{.name}}-{{.spec.database.name}}"
+              owner: postgres

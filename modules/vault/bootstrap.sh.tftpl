@@ -1,0 +1,36 @@
+set -euo pipefail
+
+until vault status >/dev/null 2>&1; do
+  echo "waiting for vault"
+  sleep 2
+done
+
+vault secrets enable -path=secrets kv-v2 2>/dev/null || true
+vault secrets enable -path=configurations kv-v2 2>/dev/null || true
+vault auth enable kubernetes 2>/dev/null || true
+
+vault write auth/kubernetes/config \
+  kubernetes_host="https://kubernetes.default.svc" \
+  kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+  token_reviewer_jwt=@/var/run/secrets/kubernetes.io/serviceaccount/token
+
+%{ for name, policy in policies ~}
+vault policy write ${name} - <<'HCL'
+${policy}
+HCL
+%{ endfor ~}
+
+%{ for name, role in roles ~}
+vault write auth/kubernetes/role/${name} \
+  bound_service_account_names=${role.sa_name} \
+  bound_service_account_namespaces=${join(",", role.namespaces)} \
+  policies=${role.policy} \
+  ttl=1h
+%{ endfor ~}
+
+%{ for t in targets ~}
+vault kv put "secrets/${t.environment}/${t.project}-${t.service}/demo" message="hello-${t.environment}"
+vault kv put "configurations/${t.environment}/${t.project}-${t.service}/demo" message="config-${t.environment}"
+%{ endfor ~}
+
+echo "vault bootstrap complete"

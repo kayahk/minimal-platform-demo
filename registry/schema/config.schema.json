@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kayahk/minimal-platform-demo/registry/schema/config.schema.json",
+  "title": "Platform registry service contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["projectName", "serviceName", "spec"],
+  "properties": {
+    "projectName": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "serviceName": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "vaultOperator": { "type": "boolean" },
+    "vaultPathPrefixes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "valuesSource", "environments"],
+      "properties": {
+        "source": { "$ref": "#/$defs/gitSource" },
+        "valuesSource": { "$ref": "#/$defs/gitSource" },
+        "database": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string" },
+            "extensions": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "environments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+              "hibernate": { "type": "boolean" },
+              "clouds": {
+                "type": "array",
+                "items": { "enum": ["aks", "onprem", "kind"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "gitSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repoURL", "targetRevision", "path"],
+      "properties": {
+        "repoURL": { "type": "string" },
+        "targetRevision": { "type": "string" },
+        "path": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "projectName": "project-a",
+  "serviceName": "push-service",
+  "vaultOperator": true,
+  "vaultPathPrefixes": [
+    "secrets",
+    "configurations"
+  ],
+  "spec": {
+    "source": {
+      "repoURL": "https://github.com/kayahk/minimal-platform-demo.git",
+      "targetRevision": "main",
+      "path": "charts/common-service"
+    },
+    "valuesSource": {
+      "repoURL": "https://github.com/kayahk/minimal-platform-demo.git",
+      "targetRevision": "main",
+      "path": "apps/push-service"
+    },
+    "database": {
+      "name": "app",
+      "extensions": ["pgcrypto"]
+    },
+    "environments": [
+      {
+        "name": "dev",
+        "hibernate": true,
+        "clouds": ["kind"]
+      },
+      {
+        "name": "int",
+        "hibernate": false,
+        "clouds": ["kind"]
+      }
+    ]
+  }
+}

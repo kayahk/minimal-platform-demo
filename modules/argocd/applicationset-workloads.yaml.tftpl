@@ -1,0 +1,58 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: registry-workloads
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    - matrix:
+        generators:
+          - git:
+              repoURL: ${repo_url}
+              revision: ${repo_revision}
+              files:
+                - path: registry/dev/*/*/config.json
+          - list:
+              elementsYaml: "{{ .spec.environments | toJson }}"
+  template:
+    metadata:
+      name: "{{.projectName}}-{{.serviceName}}-{{.name}}"
+      labels:
+        platform.demo/project: "{{.projectName}}"
+        platform.demo/service: "{{.serviceName}}"
+        platform.demo/environment: "{{.name}}"
+    spec:
+      project: default
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{.projectName}}-{{.name}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+      sources:
+        - repoURL: "{{.spec.source.repoURL}}"
+          targetRevision: "{{.spec.source.targetRevision}}"
+          path: "{{.spec.source.path}}"
+          helm:
+            releaseName: "{{.name}}"
+            ignoreMissingValueFiles: true
+            valueFiles:
+              - "$values/{{.spec.valuesSource.path}}/values.yaml"
+              - "$values/{{.spec.valuesSource.path}}/values/{{.name}}.yaml"
+            values: |
+              serviceAccount:
+                create: false
+                name: {{.projectName}}-{{.serviceName}}-sa
+              labels:
+                platform.demo/project: {{.projectName}}
+                platform.demo/service: {{.serviceName}}
+                platform.demo/environment: {{.name}}
+        - repoURL: "{{.spec.valuesSource.repoURL}}"
+          targetRevision: "{{.spec.valuesSource.targetRevision}}"
+          ref: values
