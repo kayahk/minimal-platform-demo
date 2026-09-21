@@ -2,7 +2,20 @@
 
 Companion to the blog article about building an internal developer platform backwards from one reviewed `config.json`. Clone this repository and run one command to stand up the model on a local Kubernetes cluster.
 
-This is a local demonstration, not a production platform. Vault runs in dev mode with a well-known root token.
+## Demo Scope vs. Production Reality
+
+This repository is a self-contained, educational model designed to illustrate the control plane mechanics described in the blog post. In a real-world enterprise IDP, several structural differences and architectural separations apply:
+
+- **Repository Separation & Cross-Repo GitOps**:
+  In production, the service registry lives in its own dedicated repository (e.g. `platform-registry`), owned by developers and subject to strict PR policy checks. Merges to that registry trigger automated downstream workflows in a separate platform GitOps/infrastructure repository (e.g. `sgc-platform-services`) to deliver platform updates, Vault roles, and Argo CD configurations. In this demo, the registry, charts, OpenTofu modules, and CI workflows are consolidated into a single repo for simplicity and local execution.
+- **Cluster Inventory & Placement**:
+  The blog article discusses multi-cluster placement and environments mapped across diverse cloud providers (`clouds`) backed by a cluster inventory catalog. In this demo, there is no cluster inventory: a single local Minikube (or Kind) cluster hosts all namespaces and workloads, and the `clouds` field serves as documented placement intent rather than multi-target routing.
+- **Foundation Infrastructure Pre-exists**:
+  The demo focuses entirely on the developer-facing platform layer: operators, CRDs, namespace governance, Vault integration, and Argo CD ApplicationSets. In production, foundational infrastructure—such as production-grade managed Kubernetes clusters (AKS/EKS), virtual networks, peering, subnets, DNS forwarding, and cloud identity federations (Workload Identity / UAMI)—is assumed to pre-exist, managed by separate foundational GitOps and IaC lifecycles outside the scope of the developer registry.
+- **Security & Ephemeral Setup**:
+  Vault runs in dev mode using a hardcoded root token and in-memory storage. Passwords and secrets are generated locally or checked in for demonstration purposes.
+
+---
 
 ## One command
 
