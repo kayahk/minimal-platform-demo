@@ -44,6 +44,7 @@ spec:
               name: platform-postgres
               namespace: cnpg-system
             project: "{{.projectName}}"
+            service: "{{.serviceName}}"
             environment: "{{.name}}"
             namespace: "{{.projectName}}-{{.name}}"
             database:

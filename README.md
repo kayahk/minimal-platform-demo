@@ -1,6 +1,6 @@
 # minimal-platform-demo
 
-Companion to the blog article about building an internal developer platform backwards from one reviewed `config.json`. Clone this repository and run one command to stand up a Kind cluster that follows that model.
+Companion to the blog article about building an internal developer platform backwards from one reviewed `config.json`. Clone this repository and run one command to stand up the model on a local Kubernetes cluster.
 
 This is a local demonstration, not a production platform. Vault runs in dev mode with a well-known root token.
 
@@ -12,9 +12,16 @@ cd minimal-platform-demo
 ./scripts/up.sh
 ```
 
-Requires Docker, kubectl, Helm, and OpenTofu or Terraform. If `kind` is missing, the script downloads it into `.bin/`.
+Requires Docker, kubectl, Helm, OpenTofu or Terraform, and Minikube. `up.sh` creates or reuses the `platform-demo` Minikube profile. The profile needs 4 CPUs and 6 GiB of Docker Desktop memory.
 
-Tear down with `./scripts/down.sh`.
+To use Kind instead, set `PLATFORM_DEMO_RUNTIME=kind`; if `kind` is missing, the script downloads it into `.bin/`.
+
+Tear down with `./scripts/down.sh`. The teardown removes a Kind cluster; delete the default Minikube profile separately when you no longer need it:
+
+```bash
+minikube delete --profile platform-demo
+```
+
 
 ## What you get
 

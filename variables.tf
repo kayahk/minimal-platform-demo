@@ -1,3 +1,9 @@
+variable "enable_custom_resources" {
+  type        = bool
+  default     = true
+  description = "Whether to create resources whose kinds are supplied by installed operators."
+}
+
 variable "kube_context" {
   type        = string
   default     = "kind-platform-demo"

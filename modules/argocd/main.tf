@@ -30,18 +30,42 @@ resource "helm_release" "argocd" {
   ]
 }
 
-resource "kubernetes_manifest" "workloads" {
-  manifest = yamldecode(templatefile("${path.module}/applicationset-workloads.yaml.tftpl", {
+resource "terraform_data" "workloads" {
+  triggers_replace = [sha256(templatefile("${path.module}/applicationset-workloads.yaml.tftpl", {
     repo_url      = var.repo_url
     repo_revision = var.repo_revision
-  }))
-  depends_on = [helm_release.argocd]
+  }))]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      cat <<'MANIFEST' | kubectl --context ${var.kube_context} apply -f -
+      ${templatefile("${path.module}/applicationset-workloads.yaml.tftpl", {
+    repo_url      = var.repo_url
+    repo_revision = var.repo_revision
+})}
+      MANIFEST
+    EOT
 }
 
-resource "kubernetes_manifest" "databases" {
-  manifest = yamldecode(templatefile("${path.module}/applicationset-databases.yaml.tftpl", {
+depends_on = [helm_release.argocd]
+}
+
+resource "terraform_data" "databases" {
+  triggers_replace = [sha256(templatefile("${path.module}/applicationset-databases.yaml.tftpl", {
     repo_url      = var.repo_url
     repo_revision = var.repo_revision
-  }))
-  depends_on = [helm_release.argocd]
+  }))]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      cat <<'MANIFEST' | kubectl --context ${var.kube_context} apply -f -
+      ${templatefile("${path.module}/applicationset-databases.yaml.tftpl", {
+    repo_url      = var.repo_url
+    repo_revision = var.repo_revision
+})}
+      MANIFEST
+    EOT
+}
+
+depends_on = [helm_release.argocd]
 }

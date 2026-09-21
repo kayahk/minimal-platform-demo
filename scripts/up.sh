@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Bring up a Kind cluster and apply the platform demo.
+# Bring up a local cluster and apply the platform demo.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLUSTER_NAME="platform-demo"
+PLATFORM_DEMO_RUNTIME="${PLATFORM_DEMO_RUNTIME:-minikube}"
 KIND_VERSION="v0.27.0"
 cd "$ROOT"
 
@@ -31,60 +32,81 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-install_kind() {
-  local arch os bin
-  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-  case "$(uname -m)" in
-    x86_64) arch="amd64" ;;
-    arm64|aarch64) arch="arm64" ;;
-    *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
-  esac
-  bin="${ROOT}/.bin/kind"
-  mkdir -p "${ROOT}/.bin"
-  if [[ ! -x "$bin" ]]; then
-    echo "downloading kind ${KIND_VERSION}"
-    curl -fsSL -o "$bin" "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-${os}-${arch}"
-    chmod +x "$bin"
-  fi
-  echo "$bin"
-}
+case "$PLATFORM_DEMO_RUNTIME" in
+  minikube)
+    need minikube
+    if ! minikube status --profile "$CLUSTER_NAME" >/dev/null 2>&1; then
+      echo "creating minikube profile ${CLUSTER_NAME}"
+      minikube start --profile "$CLUSTER_NAME" --driver=docker --cpus=4 --memory=6000
+    else
+      echo "minikube profile ${CLUSTER_NAME} already exists"
+    fi
+    KUBE_CONTEXT="$CLUSTER_NAME"
+    ;;
+  kind)
+    install_kind() {
+      local arch os bin
+      os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+      case "$(uname -m)" in
+        x86_64) arch="amd64" ;;
+        arm64|aarch64) arch="arm64" ;;
+        *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+      esac
+      bin="${ROOT}/.bin/kind"
+      mkdir -p "${ROOT}/.bin"
+      if [[ ! -x "$bin" ]]; then
+        echo "downloading kind ${KIND_VERSION}"
+        curl -fsSL -o "$bin" "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-${os}-${arch}"
+        chmod +x "$bin"
+      fi
+      echo "$bin"
+    }
 
-if command -v kind >/dev/null 2>&1; then
-  KIND=kind
-else
-  KIND="$(install_kind)"
-fi
+    if command -v kind >/dev/null 2>&1; then
+      KIND=kind
+    else
+      KIND="$(install_kind)"
+    fi
 
-if ! "${KIND}" get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
-  echo "creating kind cluster ${CLUSTER_NAME}"
-  "${KIND}" create cluster --config "${ROOT}/kind.yaml"
-else
-  echo "kind cluster ${CLUSTER_NAME} already exists"
-fi
+    if ! "${KIND}" get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
+      echo "creating kind cluster ${CLUSTER_NAME}"
+      "${KIND}" create cluster --config "${ROOT}/kind.yaml"
+    else
+      echo "kind cluster ${CLUSTER_NAME} already exists"
+    fi
+    KUBE_CONTEXT="kind-${CLUSTER_NAME}"
+    ;;
+  *)
+    echo "unsupported PLATFORM_DEMO_RUNTIME: $PLATFORM_DEMO_RUNTIME (use minikube or kind)" >&2
+    exit 1
+    ;;
+esac
 
-kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
+kubectl config use-context "$KUBE_CONTEXT" >/dev/null
+export TF_VAR_kube_context="$KUBE_CONTEXT"
 
 echo "initialising terraform"
 "$TF" init -input=false
 
 echo "installing operators"
+# Operator Helm charts install their CRDs asynchronously. Keep the first apply
+# free of custom resources, then let the full apply create them after the wait.
+export TF_VAR_enable_custom_resources=false
 "$TF" apply -input=false -auto-approve \
-  -target=module.kyverno \
-  -target=module.cnpg_operator.kubernetes_namespace.cnpg \
+  -target=module.kyverno.helm_release.kyverno \
   -target=module.cnpg_operator.helm_release.cnpg \
-  -target=module.vault \
-  -target=module.namespace_hibernation \
-  -target=module.argocd.kubernetes_namespace.argocd \
+  -target=module.vault.helm_release.vault \
   -target=module.argocd.helm_release.argocd \
-  -target=module.vault_secrets_operator.kubernetes_namespace.vso \
   -target=module.vault_secrets_operator.helm_release.vso
+export TF_VAR_enable_custom_resources=true
 
 echo "waiting for CRDs"
 kubectl wait --for=condition=Established --timeout=180s \
   crd/applicationsets.argoproj.io \
   crd/clusters.postgresql.cnpg.io \
   crd/clusterpolicies.kyverno.io \
-  crd/vaultauths.secrets.hashicorp.com
+  crd/vaultauths.secrets.hashicorp.com \
+  crd/vaultconnections.secrets.hashicorp.com
 
 echo "applying Kyverno policies"
 kubectl apply -f "${ROOT}/policies/kyverno"
@@ -105,7 +127,7 @@ cat <<EOF
 
 Demo is up.
 
-  cluster:     kind-${CLUSTER_NAME}
+  cluster:     ${KUBE_CONTEXT} (${PLATFORM_DEMO_RUNTIME})
   namespaces:  project-a-dev, project-a-int
   applications: project-a-push-service-dev, project-a-push-service-int
   vault:       http://127.0.0.1:8200   (token: root)

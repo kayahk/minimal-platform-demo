@@ -39,7 +39,8 @@ module "kyverno" {
 }
 
 module "cnpg_operator" {
-  source = "./modules/cnpg-operator"
+  source                  = "./modules/cnpg-operator"
+  enable_custom_resources = var.enable_custom_resources
 }
 
 module "vault" {

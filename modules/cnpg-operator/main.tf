@@ -15,6 +15,8 @@ resource "helm_release" "cnpg" {
 }
 
 resource "kubernetes_manifest" "cluster" {
+  count = var.enable_custom_resources ? 1 : 0
+
   manifest = {
     apiVersion = "postgresql.cnpg.io/v1"
     kind       = "Cluster"
