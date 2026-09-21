@@ -2,6 +2,8 @@
 
 Companion to the blog article about building an internal developer platform backwards from one reviewed `config.json`. Clone this repository and run one command to stand up the model on a local Kubernetes cluster.
 
+![A JSON file powers the platform](img/json-file-powers-platform.jpg)
+
 ## Demo Scope vs. Production Reality
 
 This repository is a self-contained, educational model designed to illustrate the control plane mechanics described in the blog post. In a real-world enterprise IDP, several structural differences and architectural separations apply:
@@ -66,6 +68,7 @@ charts/             shared workload chart and CNPG database claim chart
 apps/               values for push-service
 scripts/            up.sh, down.sh, registry validation, policy check runner
 tests/              pytest contract and CI workflow assertions
+img/                README headliner diagram
 ```
 
 ## How a field becomes a resource
