@@ -13,7 +13,8 @@ def test_down_script_deletes_the_selected_runtime_cluster():
 
     assert 'PLATFORM_DEMO_RUNTIME="${PLATFORM_DEMO_RUNTIME:-minikube}"' in script
     assert 'minikube delete --profile "$CLUSTER_NAME"' in script
-    assert 'unsupported PLATFORM_DEMO_RUNTIME' in script
+    assert 'rm -f "${ROOT}/terraform.tfstate"*' in script
+    assert 'TF_VAR_kube_context="$KUBE_CONTEXT" "$TF" destroy' in script
 
 
 def test_up_script_passes_enable_custom_resources_on_second_apply():

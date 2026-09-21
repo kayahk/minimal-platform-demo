@@ -27,18 +27,19 @@ case "$PLATFORM_DEMO_RUNTIME" in
     ;;
 esac
 
-if [[ -n "$TF" && -f "${ROOT}/terraform.tfstate" ]]; then
-  TF_VAR_kube_context="$KUBE_CONTEXT" "$TF" destroy -input=false -auto-approve || true
-fi
-
 case "$PLATFORM_DEMO_RUNTIME" in
   minikube)
     if command -v minikube >/dev/null 2>&1 && minikube status --profile "$CLUSTER_NAME" >/dev/null 2>&1; then
       echo "deleting minikube profile ${CLUSTER_NAME}"
       minikube delete --profile "$CLUSTER_NAME"
     fi
+    rm -f "${ROOT}/terraform.tfstate"*
     ;;
   kind)
+    if [[ -n "$TF" && -f "${ROOT}/terraform.tfstate" ]]; then
+      TF_VAR_kube_context="$KUBE_CONTEXT" "$TF" destroy -input=false -auto-approve || true
+    fi
+
     if command -v kind >/dev/null 2>&1; then
       KIND=kind
     elif [[ -x "${ROOT}/.bin/kind" ]]; then
