@@ -86,11 +86,12 @@ kubectl config use-context "$KUBE_CONTEXT" >/dev/null
 export TF_VAR_kube_context="$KUBE_CONTEXT"
 
 if [[ "$PLATFORM_DEMO_RUNTIME" == "minikube" ]]; then
-  VAULT_HOST="$(minikube ip --profile "$CLUSTER_NAME")"
+  VAULT_ADDR="http://$(minikube ip --profile "$CLUSTER_NAME"):30200"
+  VAULT_HINT="run \"minikube service -n vault vault --url --profile ${CLUSTER_NAME}\" if direct IP is unreachable"
 else
-  VAULT_HOST="127.0.0.1"
+  VAULT_ADDR="http://127.0.0.1:8200"
+  VAULT_HINT="Kind maps the Vault NodePort to host port 8200"
 fi
-VAULT_ADDR="http://$VAULT_HOST:30200"
 
 echo "initialising terraform"
 "$TF" init -input=false
@@ -133,8 +134,8 @@ Demo is up.
   cluster:     ${KUBE_CONTEXT} (${PLATFORM_DEMO_RUNTIME})
   namespaces:  project-a-dev, project-a-int
   applications: project-a-push-service-dev, project-a-push-service-int
-  vault:       ${VAULT_ADDR} (NodePort 30200, token: root)
-  vault url:   run "minikube service -n vault vault --url --profile ${CLUSTER_NAME}" if direct IP is unreachable
+  vault:       ${VAULT_ADDR} (token: root)
+  vault url:   ${VAULT_HINT}
   argocd:      kubectl -n argocd port-forward svc/argo-cd-argocd-server 8081:80
                user admin  password ${PASSWORD}
 

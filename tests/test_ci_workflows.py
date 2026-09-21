@@ -26,14 +26,23 @@ def test_up_script_passes_enable_custom_resources_on_second_apply():
 def test_up_script_prints_a_runtime_specific_vault_endpoint():
     script = read("scripts/up.sh")
 
-    assert 'minikube ip --profile "$CLUSTER_NAME"' in script
-    assert 'VAULT_ADDR="http://$VAULT_HOST:30200"' in script
+    assert 'VAULT_ADDR="http://$(minikube ip --profile "$CLUSTER_NAME"):30200"' in script
+    assert 'VAULT_ADDR="http://127.0.0.1:8200"' in script
+    assert 'VAULT_HINT="Kind maps the Vault NodePort to host port 8200"' in script
+
+
+def test_vso_helm_release_owns_the_default_vault_connection():
+    module = read("modules/vault-secrets-operator/main.tf")
+
+    assert 'defaultVaultConnection = {' in module
+    assert 'enabled       = true' in module
+    assert 'resource "kubernetes_manifest" "vault_connection"' not in module
 
 
 def test_vault_custom_resources_wait_for_the_operator_crds():
     module = read("modules/vault-secrets-operator/main.tf")
 
-    assert 'count = var.enable_custom_resources ? 1 : 0' in module
+    assert 'for_each = var.enable_custom_resources ?' in module
 
 
 def test_database_chart_declares_its_service_value():

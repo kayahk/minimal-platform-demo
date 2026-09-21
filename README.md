@@ -111,13 +111,15 @@ kubectl -n cnpg-system get cluster,database
 kubectl get ns project-a-dev -o yaml | grep downscaler
 ```
 
-Vault (NodePort on localhost:8200):
+Vault (default Minikube runtime):
 
 ```bash
-export VAULT_ADDR=http://127.0.0.1:8200
+export VAULT_ADDR="http://$(minikube ip --profile platform-demo):30200"
 export VAULT_TOKEN=root
 vault kv get secrets/int/project-a-push-service/demo
 ```
+
+If the Minikube node IP is not directly reachable, use `minikube service -n vault vault --url --profile platform-demo` for the address instead. With `PLATFORM_DEMO_RUNTIME=kind`, Kind maps the Vault NodePort to `http://127.0.0.1:8200`.
 
 ## Forks
 
