@@ -2,28 +2,8 @@ name: Validate platform contract
 
 on:
   pull_request:
-    paths:
-      - "registry/**/config.json"
-      - "registry/schema/**"
-      - "charts/**"
-      - "policies/**"
-      - "modules/**"
-      - "scripts/validate-registry.py"
-      - "scripts/render-and-check-policies.sh"
-      - "tests/**"
-      - ".github/workflows/validate.yaml"
   push:
     branches: [main]
-    paths:
-      - "registry/**/config.json"
-      - "registry/schema/**"
-      - "charts/**"
-      - "policies/**"
-      - "modules/**"
-      - "scripts/validate-registry.py"
-      - "scripts/render-and-check-policies.sh"
-      - "tests/**"
-      - ".github/workflows/validate.yaml"
   workflow_dispatch:
 
 permissions:

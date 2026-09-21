@@ -35,6 +35,8 @@ resource "helm_release" "vso" {
 }
 
 resource "kubernetes_manifest" "vault_connection" {
+  count = var.enable_custom_resources ? 1 : 0
+
   manifest = {
     apiVersion = "secrets.hashicorp.com/v1beta1"
     kind       = "VaultConnection"
@@ -61,7 +63,7 @@ resource "kubernetes_service_account" "service" {
 }
 
 resource "kubernetes_manifest" "vault_auth" {
-  for_each = { for t in var.targets : t.namespace => t }
+  for_each = var.enable_custom_resources ? { for t in var.targets : t.namespace => t } : {}
 
   manifest = {
     apiVersion = "secrets.hashicorp.com/v1beta1"
@@ -85,6 +87,5 @@ resource "kubernetes_manifest" "vault_auth" {
   depends_on = [
     helm_release.vso,
     kubernetes_service_account.service,
-    kubernetes_manifest.vault_connection,
   ]
 }

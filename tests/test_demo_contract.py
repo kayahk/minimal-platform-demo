@@ -16,6 +16,12 @@ def test_up_script_can_use_an_existing_minikube_profile():
     assert 'kubectl config use-context "$KUBE_CONTEXT"' in script
 
 
+def test_variables_default_to_platform_demo_context():
+    content = read("variables.tf")
+
+    assert 'default     = "platform-demo"' in content
+
+
 def test_argocd_applicationsets_use_kubectl_after_crds_exist():
     module = read("modules/argocd/main.tf")
 

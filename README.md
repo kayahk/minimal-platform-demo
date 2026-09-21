@@ -16,12 +16,7 @@ Requires Docker, kubectl, Helm, OpenTofu or Terraform, and Minikube. `up.sh` cre
 
 To use Kind instead, set `PLATFORM_DEMO_RUNTIME=kind`; if `kind` is missing, the script downloads it into `.bin/`.
 
-Tear down with `./scripts/down.sh`. The teardown removes a Kind cluster; delete the default Minikube profile separately when you no longer need it:
-
-```bash
-minikube delete --profile platform-demo
-```
-
+Tear down with `./scripts/down.sh` (this removes the cluster for the active `PLATFORM_DEMO_RUNTIME`, including the Minikube profile).
 
 ## What you get
 
@@ -48,7 +43,7 @@ The same file also produces `project-a-dev` for the `dev` stage. The folder `dev
 ## Layout
 
 ```text
-.github/workflows/  CI validation and Vault sync workflows
+.github/workflows/  CI validation workflow
 registry/           service contract (config.json) and JSON Schema
 modules/            OpenTofu modules for cluster operators
   argo-cd, vault, vault-secrets-operator, cnpg-operator, kyverno,
@@ -97,15 +92,15 @@ scripts/render-and-check-policies.sh
 
 The renderer is intentionally offline. It uses `kubectl --dry-run=client --validate=false` plus the Kyverno CLI, so it works on a GitHub-hosted runner without a cluster.
 
-## Vault registry synchronization
+## Vault updates
 
-`.github/workflows/vault-registry-sync.yaml` runs after a change to `registry/**/config.json` reaches `main`. It detects added, modified, deleted, and renamed entries with Git's name-status diff. When a change is present, it starts the `platform-demo` Minikube profile and applies the Vault module against the current registry:
+Whenever a service is added, modified, or removed in `registry/`, re-apply the Vault module:
 
 ```bash
-tofu apply -input=false -auto-approve -target=module.vault
+tofu apply -target=module.vault
 ```
 
-The workflow uses the `local-demo-vault` GitHub environment, serializes runs with a concurrency group, and is also available through `workflow_dispatch`. This is a local demonstration workflow: production use should replace Minikube with the target cluster context and add the repository's approved identity and environment protections.
+In a team or production setup, this step is typically automated by a CI/CD pipeline triggered on merge to `main` (for example, targeting an external shared Vault instance). In this local demo, running `tofu apply -target=module.vault` directly updates the local Vault container with the latest roles and policies.
 
 ## After it is up
 

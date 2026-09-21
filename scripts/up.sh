@@ -85,20 +85,23 @@ esac
 kubectl config use-context "$KUBE_CONTEXT" >/dev/null
 export TF_VAR_kube_context="$KUBE_CONTEXT"
 
+if [[ "$PLATFORM_DEMO_RUNTIME" == "minikube" ]]; then
+  VAULT_HOST="$(minikube ip --profile "$CLUSTER_NAME")"
+else
+  VAULT_HOST="127.0.0.1"
+fi
+VAULT_ADDR="http://$VAULT_HOST:30200"
+
 echo "initialising terraform"
 "$TF" init -input=false
 
 echo "installing operators"
-# Operator Helm charts install their CRDs asynchronously. Keep the first apply
-# free of custom resources, then let the full apply create them after the wait.
-export TF_VAR_enable_custom_resources=false
 "$TF" apply -input=false -auto-approve \
   -target=module.kyverno.helm_release.kyverno \
   -target=module.cnpg_operator.helm_release.cnpg \
   -target=module.vault.helm_release.vault \
   -target=module.argocd.helm_release.argocd \
   -target=module.vault_secrets_operator.helm_release.vso
-export TF_VAR_enable_custom_resources=true
 
 echo "waiting for CRDs"
 kubectl wait --for=condition=Established --timeout=180s \
@@ -112,7 +115,7 @@ echo "applying Kyverno policies"
 kubectl apply -f "${ROOT}/policies/kyverno"
 
 echo "applying remaining platform consumers"
-"$TF" apply -input=false -auto-approve
+"$TF" apply -input=false -auto-approve -var enable_custom_resources=true
 
 echo "waiting for Argo CD applications"
 if ! kubectl -n argocd wait --for=jsonpath='{.status.health.status}'=Healthy \
@@ -130,7 +133,8 @@ Demo is up.
   cluster:     ${KUBE_CONTEXT} (${PLATFORM_DEMO_RUNTIME})
   namespaces:  project-a-dev, project-a-int
   applications: project-a-push-service-dev, project-a-push-service-int
-  vault:       http://127.0.0.1:8200   (token: root)
+  vault:       ${VAULT_ADDR} (NodePort 30200, token: root)
+  vault url:   run "minikube service -n vault vault --url --profile ${CLUSTER_NAME}" if direct IP is unreachable
   argocd:      kubectl -n argocd port-forward svc/argo-cd-argocd-server 8081:80
                user admin  password ${PASSWORD}
 

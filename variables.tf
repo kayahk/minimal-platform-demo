@@ -1,12 +1,12 @@
 variable "enable_custom_resources" {
   type        = bool
-  default     = true
+  default     = false
   description = "Whether to create resources whose kinds are supplied by installed operators."
 }
 
 variable "kube_context" {
   type        = string
-  default     = "kind-platform-demo"
+  default     = "platform-demo"
   description = "kubectl context created by scripts/up.sh"
 }
 
