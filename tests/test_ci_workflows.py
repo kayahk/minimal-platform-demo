@@ -18,6 +18,12 @@ def test_validation_workflow_checks_registry_rendering_and_policies():
     assert 'tofu validate' in workflow
 
 
+def test_policy_renderer_is_offline_and_does_not_require_a_kubernetes_api():
+    script = read("scripts/render-and-check-policies.sh")
+
+    assert 'kubectl apply --dry-run=client --validate=false' in script
+
+
 def test_vault_sync_runs_only_after_registry_changes_reach_main():
     workflow = read(".github/workflows/vault-registry-sync.yaml")
 

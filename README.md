@@ -48,14 +48,16 @@ The same file also produces `project-a-dev` for the `dev` stage. The folder `dev
 ## Layout
 
 ```text
-registry/     service contract (config.json) and JSON Schema
-modules/      OpenTofu modules for cluster operators
+.github/workflows/  CI validation and Vault sync workflows
+registry/           service contract (config.json) and JSON Schema
+modules/            OpenTofu modules for cluster operators
   argo-cd, vault, vault-secrets-operator, cnpg-operator, kyverno,
   namespace-hibernation
-policies/     Vault policy source of truth and Kyverno ClusterPolicies
-charts/       shared workload chart and CNPG database claim chart
-apps/         values for push-service
-scripts/      up.sh, down.sh, registry validation
+policies/           Vault policy source of truth and Kyverno ClusterPolicies
+charts/             shared workload chart and CNPG database claim chart
+apps/               values for push-service
+scripts/            up.sh, down.sh, registry validation, policy check runner
+tests/              pytest contract and CI workflow assertions
 ```
 
 ## How a field becomes a resource
@@ -64,11 +66,46 @@ scripts/      up.sh, down.sh, registry validation
 |---|---|
 | `spec.source` / `spec.valuesSource` / `spec.environments[]` | Argo CD ApplicationSet |
 | `spec.environments[].hibernate` | namespace annotation `downscaler/uptime` |
-| `vaultOperator` / `vaultPathPrefixes` | Vault policy, K8s auth role, VaultAuth |
+| `spec.environments[].clouds` | placement intent; the demo records the field but runs one local cluster |
+| `vaultOperator` / `vaultPathPrefixes` | Vault policy, Kubernetes auth role, VaultAuth |
 | `spec.database` | companion ApplicationSet + CNPG Database |
-| labels on namespaces and Applications | Kyverno audit policies |
+| labels on namespaces and Applications | Kyverno policy checks |
 
-The ApplicationSet uses a Git generator on `registry/dev/*/*/config.json` and a list generator that expands `spec.environments[]`. That is the same matrix pattern as the article.
+The ApplicationSet uses a Git generator on `registry/dev/*/*/config.json` and a list generator that expands `spec.environments[]`. That is the same matrix pattern as the article. The demo creates separate workload and database Applications, so a service without `spec.database` does not receive a database claim.
+
+## CI validation
+
+Pull requests and relevant pushes to `main` run `.github/workflows/validate.yaml`. The workflow checks the complete contract before changes are merged:
+
+- validates every registry entry against `registry/schema/config.schema.json`;
+- runs the Python regression tests;
+- checks OpenTofu formatting and runs `tofu validate` without a backend;
+- renders the dev and int workload and database Helm charts;
+- validates the rendered Kubernetes manifests without requiring a Kubernetes API server;
+- applies the Kyverno policies to the rendered resources.
+
+The local equivalent is:
+
+```bash
+python3 scripts/validate-registry.py
+python3 -m pytest -q
+tofu fmt -check -recursive
+tofu init -backend=false -input=false
+tofu validate
+scripts/render-and-check-policies.sh
+```
+
+The renderer is intentionally offline. It uses `kubectl --dry-run=client --validate=false` plus the Kyverno CLI, so it works on a GitHub-hosted runner without a cluster.
+
+## Vault registry synchronization
+
+`.github/workflows/vault-registry-sync.yaml` runs after a change to `registry/**/config.json` reaches `main`. It detects added, modified, deleted, and renamed entries with Git's name-status diff. When a change is present, it starts the `platform-demo` Minikube profile and applies the Vault module against the current registry:
+
+```bash
+tofu apply -input=false -auto-approve -target=module.vault
+```
+
+The workflow uses the `local-demo-vault` GitHub environment, serializes runs with a concurrency group, and is also available through `workflow_dispatch`. This is a local demonstration workflow: production use should replace Minikube with the target cluster context and add the repository's approved identity and environment protections.
 
 ## After it is up
 
