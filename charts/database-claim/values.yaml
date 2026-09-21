@@ -3,9 +3,10 @@ cluster:
   namespace: cnpg-system
 
 project: ""
+service: ""
 environment: ""
 namespace: ""
 
 database:
   name: ""
-  owner: app
+  owner: postgres

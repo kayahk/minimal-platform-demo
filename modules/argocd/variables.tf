@@ -1,6 +1,6 @@
 variable "kube_context" {
   type    = string
-  default = "kind-platform-demo"
+  default = "platform-demo"
 }
 
 variable "chart_version" {

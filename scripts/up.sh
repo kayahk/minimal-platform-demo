@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Bring up a Kind cluster and apply the platform demo.
+# Bring up a local cluster and apply the platform demo.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLUSTER_NAME="platform-demo"
+PLATFORM_DEMO_RUNTIME="${PLATFORM_DEMO_RUNTIME:-minikube}"
 KIND_VERSION="v0.27.0"
 cd "$ROOT"
 
@@ -31,52 +32,76 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-install_kind() {
-  local arch os bin
-  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-  case "$(uname -m)" in
-    x86_64) arch="amd64" ;;
-    arm64|aarch64) arch="arm64" ;;
-    *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
-  esac
-  bin="${ROOT}/.bin/kind"
-  mkdir -p "${ROOT}/.bin"
-  if [[ ! -x "$bin" ]]; then
-    echo "downloading kind ${KIND_VERSION}"
-    curl -fsSL -o "$bin" "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-${os}-${arch}"
-    chmod +x "$bin"
-  fi
-  echo "$bin"
-}
+case "$PLATFORM_DEMO_RUNTIME" in
+  minikube)
+    need minikube
+    if ! minikube status --profile "$CLUSTER_NAME" >/dev/null 2>&1; then
+      echo "creating minikube profile ${CLUSTER_NAME}"
+      minikube start --profile "$CLUSTER_NAME" --driver=docker --cpus=4 --memory=6000
+    else
+      echo "minikube profile ${CLUSTER_NAME} already exists"
+    fi
+    KUBE_CONTEXT="$CLUSTER_NAME"
+    ;;
+  kind)
+    install_kind() {
+      local arch os bin
+      os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+      case "$(uname -m)" in
+        x86_64) arch="amd64" ;;
+        arm64|aarch64) arch="arm64" ;;
+        *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+      esac
+      bin="${ROOT}/.bin/kind"
+      mkdir -p "${ROOT}/.bin"
+      if [[ ! -x "$bin" ]]; then
+        echo "downloading kind ${KIND_VERSION}"
+        curl -fsSL -o "$bin" "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-${os}-${arch}"
+        chmod +x "$bin"
+      fi
+      echo "$bin"
+    }
 
-if command -v kind >/dev/null 2>&1; then
-  KIND=kind
+    if command -v kind >/dev/null 2>&1; then
+      KIND=kind
+    else
+      KIND="$(install_kind)"
+    fi
+
+    if ! "${KIND}" get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
+      echo "creating kind cluster ${CLUSTER_NAME}"
+      "${KIND}" create cluster --config "${ROOT}/kind.yaml"
+    else
+      echo "kind cluster ${CLUSTER_NAME} already exists"
+    fi
+    KUBE_CONTEXT="kind-${CLUSTER_NAME}"
+    ;;
+  *)
+    echo "unsupported PLATFORM_DEMO_RUNTIME: $PLATFORM_DEMO_RUNTIME (use minikube or kind)" >&2
+    exit 1
+    ;;
+esac
+
+kubectl config use-context "$KUBE_CONTEXT" >/dev/null
+export TF_VAR_kube_context="$KUBE_CONTEXT"
+
+if [[ "$PLATFORM_DEMO_RUNTIME" == "minikube" ]]; then
+  VAULT_ADDR="http://$(minikube ip --profile "$CLUSTER_NAME"):30200"
+  VAULT_HINT="run \"minikube service -n vault vault --url --profile ${CLUSTER_NAME}\" if direct IP is unreachable"
 else
-  KIND="$(install_kind)"
+  VAULT_ADDR="http://127.0.0.1:8200"
+  VAULT_HINT="Kind maps the Vault NodePort to host port 8200"
 fi
-
-if ! "${KIND}" get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
-  echo "creating kind cluster ${CLUSTER_NAME}"
-  "${KIND}" create cluster --config "${ROOT}/kind.yaml"
-else
-  echo "kind cluster ${CLUSTER_NAME} already exists"
-fi
-
-kubectl config use-context "kind-${CLUSTER_NAME}" >/dev/null
 
 echo "initialising terraform"
 "$TF" init -input=false
 
 echo "installing operators"
 "$TF" apply -input=false -auto-approve \
-  -target=module.kyverno \
-  -target=module.cnpg_operator.kubernetes_namespace.cnpg \
+  -target=module.kyverno.helm_release.kyverno \
   -target=module.cnpg_operator.helm_release.cnpg \
-  -target=module.vault \
-  -target=module.namespace_hibernation \
-  -target=module.argocd.kubernetes_namespace.argocd \
+  -target=module.vault.helm_release.vault \
   -target=module.argocd.helm_release.argocd \
-  -target=module.vault_secrets_operator.kubernetes_namespace.vso \
   -target=module.vault_secrets_operator.helm_release.vso
 
 echo "waiting for CRDs"
@@ -84,13 +109,14 @@ kubectl wait --for=condition=Established --timeout=180s \
   crd/applicationsets.argoproj.io \
   crd/clusters.postgresql.cnpg.io \
   crd/clusterpolicies.kyverno.io \
-  crd/vaultauths.secrets.hashicorp.com
+  crd/vaultauths.secrets.hashicorp.com \
+  crd/vaultconnections.secrets.hashicorp.com
 
 echo "applying Kyverno policies"
 kubectl apply -f "${ROOT}/policies/kyverno"
 
 echo "applying remaining platform consumers"
-"$TF" apply -input=false -auto-approve
+"$TF" apply -input=false -auto-approve -var enable_custom_resources=true
 
 echo "waiting for Argo CD applications"
 if ! kubectl -n argocd wait --for=jsonpath='{.status.health.status}'=Healthy \
@@ -105,10 +131,11 @@ cat <<EOF
 
 Demo is up.
 
-  cluster:     kind-${CLUSTER_NAME}
+  cluster:     ${KUBE_CONTEXT} (${PLATFORM_DEMO_RUNTIME})
   namespaces:  project-a-dev, project-a-int
   applications: project-a-push-service-dev, project-a-push-service-int
-  vault:       http://127.0.0.1:8200   (token: root)
+  vault:       ${VAULT_ADDR} (token: root)
+  vault url:   ${VAULT_HINT}
   argocd:      kubectl -n argocd port-forward svc/argo-cd-argocd-server 8081:80
                user admin  password ${PASSWORD}
 

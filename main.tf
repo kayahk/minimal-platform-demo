@@ -39,7 +39,8 @@ module "kyverno" {
 }
 
 module "cnpg_operator" {
-  source = "./modules/cnpg-operator"
+  source                  = "./modules/cnpg-operator"
+  enable_custom_resources = var.enable_custom_resources
 }
 
 module "vault" {
@@ -53,8 +54,9 @@ module "namespace_hibernation" {
 }
 
 module "vault_secrets_operator" {
-  source  = "./modules/vault-secrets-operator"
-  targets = local.vault_targets
+  source                  = "./modules/vault-secrets-operator"
+  enable_custom_resources = var.enable_custom_resources
+  targets                 = local.vault_targets
 
   depends_on = [
     module.vault,

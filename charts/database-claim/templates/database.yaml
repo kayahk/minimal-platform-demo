@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Values.cluster.namespace }}
   labels:
     platform.demo/project: {{ .Values.project | quote }}
-    platform.demo/service: {{ .Values.environment | quote }}
+    platform.demo/service: {{ .Values.service | quote }}
 spec:
   name: {{ .Values.database.name }}
   owner: {{ .Values.database.owner }}

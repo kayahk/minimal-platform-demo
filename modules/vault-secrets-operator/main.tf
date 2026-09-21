@@ -34,23 +34,6 @@ resource "helm_release" "vso" {
   ]
 }
 
-resource "kubernetes_manifest" "vault_connection" {
-  manifest = {
-    apiVersion = "secrets.hashicorp.com/v1beta1"
-    kind       = "VaultConnection"
-    metadata = {
-      name      = "default"
-      namespace = kubernetes_namespace.vso.metadata[0].name
-    }
-    spec = {
-      address       = "http://vault.vault.svc.cluster.local:8200"
-      skipTLSVerify = true
-    }
-  }
-
-  depends_on = [helm_release.vso]
-}
-
 resource "kubernetes_service_account" "service" {
   for_each = { for t in var.targets : t.namespace => t }
 
@@ -61,7 +44,7 @@ resource "kubernetes_service_account" "service" {
 }
 
 resource "kubernetes_manifest" "vault_auth" {
-  for_each = { for t in var.targets : t.namespace => t }
+  for_each = var.enable_custom_resources ? { for t in var.targets : t.namespace => t } : {}
 
   manifest = {
     apiVersion = "secrets.hashicorp.com/v1beta1"
@@ -85,6 +68,5 @@ resource "kubernetes_manifest" "vault_auth" {
   depends_on = [
     helm_release.vso,
     kubernetes_service_account.service,
-    kubernetes_manifest.vault_connection,
   ]
 }
