@@ -1,0 +1,69 @@
+name: Synchronize Vault registry access
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "registry/**/config.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vault-registry-sync
+  cancel-in-progress: false
+
+jobs:
+  detect-registry-change:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.registry.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - id: registry
+        name: Detect added, modified, removed, or renamed registry entries
+        shell: bash
+        run: |
+          set -euo pipefail
+          changes="$(git diff --name-status HEAD^ HEAD -- 'registry/**/config.json')"
+          printf '%s\n' "$changes"
+          if [[ -n "$changes" ]]; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  apply-vault:
+    needs: detect-registry-change
+    if: needs.detect-registry-change.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment: local-demo-vault
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-kubectl@v4
+
+      - uses: azure/setup-helm@v4
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.10.6"
+
+      - name: Install Minikube
+        run: |
+          curl -fsSLo /tmp/minikube https://storage.googleapis.com/minikube/releases/v1.39.0/minikube-linux-amd64
+          sudo install /tmp/minikube /usr/local/bin/minikube
+
+      - name: Start local Minikube profile
+        run: minikube start --profile platform-demo --driver=docker --cpus=4 --memory=6000
+
+      - name: Apply Vault module from the current registry
+        env:
+          TF_VAR_kube_context: platform-demo
+        run: |
+          tofu init -input=false
+          tofu apply -input=false -auto-approve -target=module.vault
