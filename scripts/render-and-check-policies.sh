@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=lib.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib.sh"
+require_unix
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -14,14 +18,8 @@ need() {
 need helm
 need kyverno
 
-if command -v tofu >/dev/null 2>&1; then
-  TF=tofu
-elif command -v terraform >/dev/null 2>&1; then
-  TF=terraform
-else
-  echo "missing dependency: tofu or terraform" >&2
-  exit 1
-fi
+need tofu
+TF=tofu
 
 render_dir="$(mktemp -d)"
 trap 'rm -rf "$render_dir"' EXIT
@@ -36,6 +34,11 @@ render_workload() {
     --set-string "labels.platform\.demo/project=project-a" \
     --set-string "labels.platform\.demo/service=push-service" \
     --set-string "labels.platform\.demo/environment=${environment}" \
+    --set vault.enabled=true \
+    --set vault.environment="${environment}" \
+    --set vault.project=project-a \
+    --set vault.service=push-service \
+    --set 'vault.pathPrefixes={secrets,configurations}' \
     >"$render_dir/workload-${environment}.yaml"
 }
 
@@ -62,5 +65,5 @@ for manifest in "$render_dir"/*.yaml; do
   kyverno apply policies/kyverno --resource "$manifest"
 done
 
-"$TF" init -backend=false -input=false
-"$TF" validate
+"$TF" -chdir="${ROOT}/terraform" init -backend=false -input=false
+"$TF" -chdir="${ROOT}/terraform" validate

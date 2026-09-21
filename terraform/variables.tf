@@ -25,3 +25,9 @@ variable "repo_revision" {
   type    = string
   default = "main"
 }
+
+variable "host_timezone" {
+  type        = string
+  default     = "UTC"
+  description = "IANA timezone of the machine running up.sh. Used for hibernate schedules."
+}

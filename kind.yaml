@@ -13,6 +13,7 @@ nodes:
       - containerPort: 30200
         hostPort: 8200
         protocol: TCP
+      # Argo CD UI: NodePort 30080 -> localhost:8081
       - containerPort: 30080
         hostPort: 8081
         protocol: TCP

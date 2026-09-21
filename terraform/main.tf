@@ -1,7 +1,9 @@
 locals {
+  repo_root = abspath("${path.module}/..")
+
   configs = {
-    for f in fileset("${path.module}/registry", "**/config.json") :
-    trimsuffix(f, "/config.json") => jsondecode(file("${path.module}/registry/${f}"))
+    for f in fileset("${local.repo_root}/registry", "**/config.json") :
+    trimsuffix(f, "/config.json") => jsondecode(file("${local.repo_root}/registry/${f}"))
   }
 
   targets = flatten([
@@ -41,6 +43,16 @@ module "kyverno" {
 module "cnpg_operator" {
   source                  = "./modules/cnpg-operator"
   enable_custom_resources = var.enable_custom_resources
+  database_targets = [
+    for t in local.targets : {
+      namespace   = t.namespace
+      project     = t.project
+      service     = t.service
+      environment = t.environment
+    } if t.has_database
+  ]
+
+  depends_on = [module.namespace_hibernation]
 }
 
 module "vault" {
@@ -51,6 +63,7 @@ module "vault" {
 module "namespace_hibernation" {
   source     = "./modules/namespace-hibernation"
   namespaces = local.namespaces
+  uptime     = "Mon-Fri 08:00-18:00 ${var.host_timezone}"
 }
 
 module "vault_secrets_operator" {

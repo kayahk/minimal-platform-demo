@@ -36,8 +36,8 @@ spec:
         syncOptions:
           - CreateNamespace=true
       sources:
-        - repoURL: "{{.spec.source.repoURL}}"
-          targetRevision: "{{.spec.source.targetRevision}}"
+        - repoURL: ${repo_url}
+          targetRevision: ${repo_revision}
           path: "{{.spec.source.path}}"
           helm:
             releaseName: "{{.name}}"
@@ -53,6 +53,35 @@ spec:
                 platform.demo/project: {{.projectName}}
                 platform.demo/service: {{.serviceName}}
                 platform.demo/environment: {{.name}}
-        - repoURL: "{{.spec.valuesSource.repoURL}}"
-          targetRevision: "{{.spec.valuesSource.targetRevision}}"
+              vault:
+                enabled: {{.vaultOperator}}
+                environment: {{.name}}
+                project: {{.projectName}}
+                service: {{.serviceName}}
+                pathPrefixes: [{{ range $i, $p := .vaultPathPrefixes }}{{ if $i }}, {{ end }}{{ $p }}{{ end }}]
+              {{ if .spec.database }}
+              database:
+                enabled: true
+                name: {{.name}}-{{.spec.database.name}}
+                secretName: postgres-app
+                host: platform-postgres-rw.cnpg-system
+              {{ else }}
+              database:
+                enabled: false
+              {{ end }}
+        - repoURL: ${repo_url}
+          targetRevision: ${repo_revision}
           ref: values
+  templatePatch: |
+    {{- if .hibernate }}
+    spec:
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - RespectIgnoreDifferences=true
+    {{- end }}

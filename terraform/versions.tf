@@ -10,5 +10,9 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.17"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.6"
+    }
   }
 }

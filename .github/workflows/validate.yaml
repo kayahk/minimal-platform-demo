@@ -44,9 +44,9 @@ jobs:
 
       - name: Format and validate OpenTofu
         run: |
-          tofu fmt -check -recursive
-          tofu init -backend=false -input=false
-          tofu validate
+          tofu fmt -check -recursive terraform
+          tofu -chdir=terraform init -backend=false -input=false
+          tofu -chdir=terraform validate
 
       - name: Render Helm charts and enforce policies
         run: scripts/render-and-check-policies.sh
