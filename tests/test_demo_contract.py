@@ -77,6 +77,18 @@ def test_workload_chart_declares_vault_static_secrets():
     assert "audience=vault" in bootstrap
 
 
+def test_vault_policy_template_is_generic_and_rendered_by_opentofu():
+    template = read("policies/vault/service-access.hcl")
+    module = read("terraform/modules/vault/main.tf")
+
+    assert "{{env}}" in template
+    assert "{{project}}" in template
+    assert "{{service}}" in template
+    assert "project-a-push-service" not in template
+    assert 'file("${path.root}/../policies/vault/service-access.hcl")' in module
+    assert not (ROOT / "policies/vault/project-a-push-service-access.hcl").exists()
+
+
 def test_applicationset_passes_vault_identity_into_the_workload_chart():
     application_set = read("terraform/modules/argocd/applicationset-workloads.yaml.tftpl")
 

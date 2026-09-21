@@ -118,7 +118,7 @@ Application:     project-a-push-service-int
 Helm release:    int
 service account: project-a-push-service-sa
 Vault role:      project-a-push-service
-Vault policy:    project-a-push-service-access
+Vault policy:    project-a-push-service-access  (from policies/vault/service-access.hcl)
 database name:   int-app
 ```
 
@@ -132,7 +132,7 @@ registry/           service contract (config.json) and JSON Schema
 terraform/          OpenTofu root module, lockfile, and cluster-operator modules
   modules/          argocd, vault, vault-secrets-operator, cnpg-operator,
                     kyverno, namespace-hibernation (GoKubeDownscaler)
-policies/           Vault policy source of truth and Kyverno ClusterPolicies
+policies/           generic Vault policy template and Kyverno ClusterPolicies
 charts/             shared workload chart and CNPG database claim chart
 apps/               values for push-service
 scripts/            up.sh, down.sh, registry validation, policy check runner

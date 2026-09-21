@@ -61,13 +61,20 @@ resource "kubernetes_config_map" "bootstrap" {
 }
 
 locals {
+  policy_template = file("${path.root}/../policies/vault/service-access.hcl")
+
   policies = {
     for role in distinct([for t in var.targets : t.vault_policy]) : role => join("\n", flatten([
       for t in var.targets : t.vault_policy == role ? [
-        "path \"secrets/data/${t.environment}/${t.project}-${t.service}/*\" { capabilities = [\"read\", \"list\"] }",
-        "path \"secrets/metadata/${t.environment}/${t.project}-${t.service}/*\" { capabilities = [\"read\", \"list\"] }",
-        "path \"configurations/data/${t.environment}/${t.project}-${t.service}/*\" { capabilities = [\"read\", \"list\"] }",
-        "path \"configurations/metadata/${t.environment}/${t.project}-${t.service}/*\" { capabilities = [\"read\", \"list\"] }",
+        replace(
+          replace(
+            replace(local.policy_template, "{{env}}", t.environment),
+            "{{project}}",
+            t.project
+          ),
+          "{{service}}",
+          t.service
+        )
       ] : []
     ]))
   }
