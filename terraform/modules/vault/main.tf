@@ -104,6 +104,26 @@ resource "kubernetes_cluster_role_binding" "bootstrap" {
   }
 }
 
+# Vault's own pod token is used for TokenReview after bootstrap, so the
+# server service account needs auth-delegator for ongoing Kubernetes auth.
+resource "kubernetes_cluster_role_binding" "vault_server" {
+  metadata {
+    name = "vault-server-auth-delegator"
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "system:auth-delegator"
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "vault"
+    namespace = kubernetes_namespace.vault.metadata[0].name
+  }
+
+  depends_on = [helm_release.vault]
+}
+
 resource "kubernetes_job" "bootstrap" {
   metadata {
     name      = "vault-bootstrap"
@@ -156,8 +176,13 @@ resource "kubernetes_job" "bootstrap" {
     update = "5m"
   }
 
+  lifecycle {
+    replace_triggered_by = [kubernetes_config_map.bootstrap]
+  }
+
   depends_on = [
     helm_release.vault,
     kubernetes_cluster_role_binding.bootstrap,
+    kubernetes_cluster_role_binding.vault_server,
   ]
 }

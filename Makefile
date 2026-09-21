@@ -7,7 +7,7 @@ down:
 	./scripts/down.sh
 
 fmt:
-	tofu fmt -recursive || terraform fmt -recursive
+	tofu fmt -recursive terraform
 
 validate:
 	python3 scripts/validate-registry.py

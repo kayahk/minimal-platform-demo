@@ -9,4 +9,4 @@ namespace: ""
 
 database:
   name: ""
-  owner: postgres
+  owner: app

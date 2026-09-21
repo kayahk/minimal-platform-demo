@@ -1,6 +1,10 @@
 # minimal-platform-demo
 
-Companion to the blog article about building an internal developer platform backwards from one reviewed `config.json`. Clone this repository and run one command to stand up the model on a local Kubernetes cluster.
+Companion to the blog article about building an internal developer platform backwards from one reviewed `config.json`. 
+
+[https://looks.ratherbumpy.com/2026/09/a-powerful-platform-can-start-real-tiny.html](https://looks.ratherbumpy.com/2026/09/a-powerful-platform-can-start-real-tiny.html)
+
+Clone this repository and run one command to stand up the model on a local Kubernetes cluster.
 
 ![A JSON file powers the platform](img/json-file-powers-platform.jpg)
 
@@ -9,15 +13,17 @@ Companion to the blog article about building an internal developer platform back
 This repository is a self-contained, educational model designed to illustrate the control plane mechanics described in the blog post. In a real-world enterprise IDP, several structural differences and architectural separations apply:
 
 - **Repository Separation & Cross-Repo GitOps**:
-  In production, the service registry lives in its own dedicated repository, owned by developers and subject to strict PR policy checks. Merges to that registry trigger automated downstream workflows in a separate platform GitOps/infrastructure repository to deliver platform updates, Vault roles, and Argo CD configurations. In this demo, the registry, charts, OpenTofu modules, and CI workflows are consolidated into a single repo for simplicity and local execution.
+In production, the service registry lives in its own dedicated repository, owned by developers and subject to strict PR policy checks. Merges to that registry trigger automated downstream workflows in a separate platform GitOps/infrastructure repository to deliver platform updates, Vault roles, and Argo CD configurations. In this demo, the registry, charts, OpenTofu modules, and CI workflows are consolidated into a single repo for simplicity and local execution.
 - **Cluster Inventory & Placement**:
-  The blog article discusses multi-cluster placement and environments mapped across diverse cloud providers (`clouds`) backed by a cluster inventory catalog. In this demo, there is no cluster inventory: a single local Minikube (or Kind) cluster hosts all namespaces and workloads, and the `clouds` field serves as documented placement intent rather than multi-target routing.
+The blog article discusses multi-cluster placement and environments mapped across diverse cloud providers (`clouds`) backed by a cluster inventory catalog. In this demo, there is no cluster inventory: a single local Minikube (or Kind) cluster hosts all namespaces and workloads, and the `clouds` field serves as documented placement intent rather than multi-target routing.
 - **Foundation Infrastructure Pre-exists**:
-  The demo focuses entirely on the developer-facing platform layer: operators, CRDs, namespace governance, Vault integration, and Argo CD ApplicationSets. In production, foundational infrastructure—such as production-grade managed Kubernetes clusters (AKS/EKS), virtual networks, peering, subnets, DNS forwarding, and cloud identity federations (Workload Identity / UAMI)—is assumed to pre-exist, managed by separate foundational GitOps and IaC lifecycles outside the scope of the developer registry.
+The demo focuses entirely on the developer-facing platform layer: operators, CRDs, namespace governance, Vault integration, and Argo CD ApplicationSets. In production, foundational infrastructure—such as production-grade managed Kubernetes clusters (AKS/EKS), virtual networks, peering, subnets, DNS forwarding, and cloud identity federations (Workload Identity / UAMI)—is assumed to pre-exist, managed by separate foundational GitOps and IaC lifecycles outside the scope of the developer registry.
 - **Security & Ephemeral Setup**:
-  Vault runs in dev mode using a hardcoded root token and in-memory storage. Passwords and secrets are generated locally or checked in for demonstration purposes.
+Vault runs in dev mode using a hardcoded root token and in-memory storage. Passwords and secrets are generated locally or checked in for demonstration purposes.
 
 ---
+
+
 
 ## One command
 
@@ -27,11 +33,74 @@ cd minimal-platform-demo
 ./scripts/up.sh
 ```
 
-Requires Docker, kubectl, Helm, OpenTofu or Terraform, and Minikube. `up.sh` creates or reuses the `platform-demo` Minikube profile. The profile needs 4 CPUs and 6 GiB of Docker Desktop memory.
+Requires a macOS or Linux host (Windows via WSL2) with bash, Docker, kubectl, Helm, OpenTofu, and Minikube. `up.sh` creates or reuses the `platform-demo` Minikube profile. The Docker engine needs 4 CPUs and 6 GiB of memory for that profile.
 
 To use Kind instead, set `PLATFORM_DEMO_RUNTIME=kind`; if `kind` is missing, the script downloads it into `.bin/`.
 
-Tear down with `./scripts/down.sh` (this removes the cluster for the active `PLATFORM_DEMO_RUNTIME`, including the Minikube profile).
+Tear down with `./scripts/down.sh` (this stops the demo-app port-forward and removes the cluster for the active `PLATFORM_DEMO_RUNTIME`, including the Minikube profile).
+
+## Access the demo
+
+`./scripts/up.sh` prints the live URLs. There are **three different endpoints**. Do not open Argo CD on port 9090, and do not port-forward Argo CD onto 8081.
+
+| What | Minikube (default) | Kind | How to authenticate |
+| --- | --- | --- | --- |
+| **Argo CD UI** (GitOps console, not the workload) | `http://$(minikube ip --profile platform-demo):30080` | `http://127.0.0.1:8081` | user `admin`; password from the secret below |
+| **push-service** (hello-world app that shows Vault secrets) | `http://127.0.0.1:9090` | `http://127.0.0.1:9090` | none. `up.sh` port-forwards `svc/int` in `project-a-int` |
+| **Vault** (optional KV inspector) | `http://$(minikube ip --profile platform-demo):30200` | `http://127.0.0.1:8200` | token `root` |
+
+Argo CD password:
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | (base64 --decode 2>/dev/null || base64 -d)
+echo
+```
+
+### 1. Argo CD UI
+
+This is the GitOps console. On Minikube it is NodePort **30080** on the Minikube node IP. On Kind, host port **8081** is mapped to that NodePort. Do not `kubectl port-forward` Argo CD onto 8081 (Kind already binds it), and do not use 9090.
+
+Log in as `admin`, then open application `project-a-push-service-int`. **Synced** and **Healthy** means the platform turned `registry/dev/project-a/push-service/config.json` into a running workload. The application tree should include `VaultStaticSecret` objects.
+
+### 2. push-service (hello-world)
+
+This is the demo application, not Argo CD. `up.sh` forwards it to **http://127.0.0.1:9090**.
+
+```bash
+curl -s http://127.0.0.1:9090/api/secrets
+```
+
+The page should show `message=hello from Vault (int)` from `secrets/int/project-a-push-service/demo`. Those values are not in Git; Vault Secrets Operator copied them into the pod.
+
+```bash
+kubectl -n project-a-int get vaultauth,vaultstaticsecret,secret
+```
+
+If the forward is not running:
+
+```bash
+kubectl -n project-a-int port-forward --address 127.0.0.1 svc/int 9090:80
+```
+
+### 3. Vault
+
+Optional. Dev-mode Vault with token `root`. On Minikube it is NodePort **30200** on the Minikube node IP. On Kind, host port **8200** is mapped to that NodePort.
+
+Seeded paths:
+
+```text
+secrets/int/project-a-push-service/demo
+configurations/int/project-a-push-service/demo
+```
+
+If the Minikube NodePort IP is unreachable:
+
+```bash
+minikube service -n vault vault --url --profile platform-demo
+minikube service -n argocd argo-cd-argocd-server --url --profile platform-demo
+```
+
+Argo CD clones a local snapshot of `charts/`, `apps/`, and `registry/` rather than GitHub `main`. After editing those trees, re-run `./scripts/up.sh` so the snapshot refreshes.
 
 ## What you get
 
@@ -53,16 +122,16 @@ Vault policy:    project-a-push-service-access
 database name:   int-app
 ```
 
-The same file also produces `project-a-dev` for the `dev` stage. The folder `dev/` is the onboarding tree, not the environment name.
+The same file also produces `project-a-dev` for the `dev` stage. That environment sets `hibernate: true`, so the namespace gets `downscaler/uptime: Mon-Fri 08:00-18:00` in the **host timezone** (`up.sh` detects it; override with `TZ=Area/City`). GoKubeDownscaler scales its Deployments to zero outside that window. `project-a-int` stays up. The folder `dev/` is the onboarding tree, not the environment name.
 
 ## Layout
 
 ```text
 .github/workflows/  CI validation workflow
 registry/           service contract (config.json) and JSON Schema
-modules/            OpenTofu modules for cluster operators
-  argo-cd, vault, vault-secrets-operator, cnpg-operator, kyverno,
-  namespace-hibernation
+terraform/          OpenTofu root module, lockfile, and cluster-operator modules
+  modules/          argocd, vault, vault-secrets-operator, cnpg-operator,
+                    kyverno, namespace-hibernation (GoKubeDownscaler)
 policies/           Vault policy source of truth and Kyverno ClusterPolicies
 charts/             shared workload chart and CNPG database claim chart
 apps/               values for push-service
@@ -71,78 +140,11 @@ tests/              pytest contract and CI workflow assertions
 img/                README headliner diagram
 ```
 
-## How a field becomes a resource
+## Acknowledgements
 
-| Registry field | Consumer |
-|---|---|
-| `spec.source` / `spec.valuesSource` / `spec.environments[]` | Argo CD ApplicationSet |
-| `spec.environments[].hibernate` | namespace annotation `downscaler/uptime` |
-| `spec.environments[].clouds` | placement intent; the demo records the field but runs one local cluster |
-| `vaultOperator` / `vaultPathPrefixes` | Vault policy, Kubernetes auth role, VaultAuth |
-| `spec.database` | companion ApplicationSet + CNPG Database |
-| labels on namespaces and Applications | Kyverno policy checks |
+This repository is an independent educational example. It is not affiliated with, endorsed by, or sponsored by the owners of the products it uses.
 
-The ApplicationSet uses a Git generator on `registry/dev/*/*/config.json` and a list generator that expands `spec.environments[]`. That is the same matrix pattern as the article. The demo creates separate workload and database Applications, so a service without `spec.database` does not receive a database claim.
+The demo installs those products from upstream at runtime (Helm charts and container images). Their licenses stay with those upstream artifacts. This repository’s MIT license covers only the original files in this tree.
 
-## CI validation
+Names used here are trademarks of their respective owners, including Kubernetes, Argo, Helm, OpenTofu, Kyverno, CloudNativePG, Minikube, kind, Docker, Vault, HashiCorp, and GoKubeDownscaler. They appear only to identify the software the demo actually runs.
 
-Pull requests and relevant pushes to `main` run `.github/workflows/validate.yaml`. The workflow checks the complete contract before changes are merged:
-
-- validates every registry entry against `registry/schema/config.schema.json`;
-- runs the Python regression tests;
-- checks OpenTofu formatting and runs `tofu validate` without a backend;
-- renders the dev and int workload and database Helm charts;
-- validates the rendered Kubernetes manifests without requiring a Kubernetes API server;
-- applies the Kyverno policies to the rendered resources.
-
-The local equivalent is:
-
-```bash
-python3 scripts/validate-registry.py
-python3 -m pytest -q
-tofu fmt -check -recursive
-tofu init -backend=false -input=false
-tofu validate
-scripts/render-and-check-policies.sh
-```
-
-The renderer is intentionally offline: Helm produces the manifests and the Kyverno CLI evaluates the policies without requiring Kubernetes credentials or a live API server.
-
-## Vault updates
-
-Whenever a service is added, modified, or removed in `registry/`, re-apply the Vault module:
-
-```bash
-tofu apply -target=module.vault
-```
-
-In a team or production setup, this step is typically automated by a CI/CD pipeline triggered on merge to `main` (for example, targeting an external shared Vault instance). In this local demo, running `tofu apply -target=module.vault` directly updates the local Vault container with the latest roles and policies.
-
-## After it is up
-
-```bash
-kubectl -n argocd get applications
-kubectl -n project-a-int get pods,sa
-kubectl -n cnpg-system get cluster,database
-kubectl get ns project-a-dev -o yaml | grep downscaler
-```
-
-Vault (default Minikube runtime):
-
-```bash
-export VAULT_ADDR="http://$(minikube ip --profile platform-demo):30200"
-export VAULT_TOKEN=root
-vault kv get secrets/int/project-a-push-service/demo
-```
-
-If the Minikube node IP is not directly reachable, use `minikube service -n vault vault --url --profile platform-demo` for the address instead. With `PLATFORM_DEMO_RUNTIME=kind`, Kind maps the Vault NodePort to `http://127.0.0.1:8200`.
-
-## Forks
-
-ApplicationSets clone this GitHub repository. If you fork it, apply with:
-
-```bash
-tofu apply -var repo_url=https://github.com/<you>/minimal-platform-demo.git
-```
-
-or set `TF_VAR_repo_url` before `./scripts/up.sh`.

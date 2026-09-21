@@ -6,6 +6,8 @@ metadata:
   labels:
     platform.demo/project: {{ .Values.project | quote }}
     platform.demo/service: {{ .Values.service | quote }}
+    platform.demo/environment: {{ .Values.environment | quote }}
+    platform.demo/namespace: {{ .Values.namespace | quote }}
 spec:
   name: {{ .Values.database.name }}
   owner: {{ .Values.database.owner }}

@@ -5,6 +5,8 @@ crash.log
 kubeconfig
 kind
 .bin/
+.demo-app-port-forward.pid
+.demo-app-port-forward.log
 .idea/
 .DS_Store
 *.swp

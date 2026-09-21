@@ -28,8 +28,82 @@ spec:
         - name: app
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.database.enabled }}
+          command:
+            - /bin/sh
+            - -c
+            - apk add --no-cache postgresql16-client && exec python /app/server.py
+          {{- else }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          env:
+            - name: PORT
+              value: "80"
+            - name: ENVIRONMENT
+              value: {{ .Values.vault.environment | quote }}
+            - name: PROJECT
+              value: {{ .Values.vault.project | quote }}
+            - name: SERVICE
+              value: {{ .Values.vault.service | quote }}
+            - name: VAULT_PREFIXES
+              value: {{ .Values.vault.pathPrefixes | join "," | quote }}
+            {{- if .Values.database.enabled }}
+            - name: DATABASE_ENABLED
+              value: "true"
+            - name: PGHOST
+              value: {{ .Values.database.host | quote }}
+            - name: PGPORT
+              value: {{ .Values.database.port | quote }}
+            - name: PGDATABASE
+              value: {{ .Values.database.name | quote }}
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName | quote }}
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName | quote }}
+                  key: password
+            - name: PGSSLMODE
+              value: disable
+            {{- end }}
           ports:
             - containerPort: 80
               name: http
+          readinessProbe:
+            httpGet:
+              path: {{ if .Values.database.enabled }}/readyz{{ else }}/healthz{{ end }}
+              port: http
+            initialDelaySeconds: {{ if .Values.database.enabled }}8{{ else }}2{{ end }}
+            periodSeconds: 5
+            failureThreshold: {{ if .Values.database.enabled }}18{{ else }}3{{ end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: ui
+              mountPath: /app
+              readOnly: true
+            {{- if .Values.vault.enabled }}
+            {{- range .Values.vault.pathPrefixes }}
+            - name: vault-{{ . }}
+              mountPath: /vault/{{ . }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
+      volumes:
+        - name: ui
+          configMap:
+            name: {{ .Release.Name }}-ui
+        {{- if .Values.vault.enabled }}
+        {{- range .Values.vault.pathPrefixes }}
+        - name: vault-{{ . }}
+          secret:
+            secretName: {{ $.Release.Name }}-{{ . }}-demo
+            optional: true
+        {{- end }}
+        {{- end }}

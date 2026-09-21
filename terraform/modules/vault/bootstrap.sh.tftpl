@@ -11,8 +11,7 @@ vault auth enable kubernetes 2>/dev/null || true
 
 vault write auth/kubernetes/config \
   kubernetes_host="https://kubernetes.default.svc" \
-  kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
-  token_reviewer_jwt=@/var/run/secrets/kubernetes.io/serviceaccount/token
+  kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
 %{ for name, policy in policies ~}
 vault policy write ${name} - <<'HCL'
@@ -25,12 +24,17 @@ vault write auth/kubernetes/role/${name} \
   bound_service_account_names=${role.sa_name} \
   bound_service_account_namespaces=${join(",", role.namespaces)} \
   policies=${role.policy} \
+  audience=vault \
   ttl=1h
 %{ endfor ~}
 
 %{ for t in targets ~}
-vault kv put "secrets/${t.environment}/${t.project}-${t.service}/demo" message="hello-${t.environment}"
-vault kv put "configurations/${t.environment}/${t.project}-${t.service}/demo" message="config-${t.environment}"
+vault kv put "secrets/${t.environment}/${t.project}-${t.service}/demo" \
+  message="hello from Vault (${t.environment})" \
+  api_key="push-service-${t.environment}-key"
+vault kv put "configurations/${t.environment}/${t.project}-${t.service}/demo" \
+  feature_flag="on" \
+  log_level="debug"
 %{ endfor ~}
 
 echo "vault bootstrap complete"
