@@ -60,7 +60,7 @@ for environment in dev int; do
 done
 
 for manifest in "$render_dir"/*.yaml; do
-  kubectl apply --dry-run=client --validate=false -f "$manifest"
+  kubectl apply --dry-run=client --validate=false --server-side=false --openapi-patch=false -f "$manifest"
   kyverno apply policies/kyverno --resource "$manifest"
 done
 
